@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Stock App</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card: #1e293b;
+      --text: #f8fafc;
+      --subtext: #94a3b8;
+      --up: #22c55e;
+      --down: #ef4444;
+      --accent: #38bdf8;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background-color: var(--bg);
+      color: var(--text);
+      padding: 16px;
+    }
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+    h1 { font-size: 1.25rem; font-weight: 700; }
+    .btn-refresh {
+      background: var(--accent);
+      color: #0f172a;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 6px;
+      font-weight: bold;
+      font-size: 0.9rem;
+      cursor: pointer;
+    }
+    .config-box {
+      background: var(--card);
+      padding: 14px;
+      border-radius: 8px;
+      margin-bottom: 16px;
+    }
+    .config-box label {
+      font-size: 0.8rem;
+      color: var(--subtext);
+      display: block;
+      margin-bottom: 6px;
+    }
+    .config-box input {
+      width: 100%;
+      padding: 10px;
+      border-radius: 6px;
+      border: 1px solid #334155;
+      background: #0f172a;
+      color: var(--text);
+      font-size: 0.9rem;
+    }
+    .grid {
+      display: grid;
+      gap: 12px;
+    }
+    .card {
+      background: var(--card);
+      padding: 16px;
+      border-radius: 8px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .symbol { font-size: 1.15rem; font-weight: bold; }
+    .price-group { text-align: right; }
+    .price { font-size: 1.2rem; font-weight: bold; }
+    .change { font-size: 0.85rem; margin-top: 3px; font-weight: 500; }
+    .up { color: var(--up); }
+    .down { color: var(--down); }
+    .status {
+      text-align: center;
+      font-size: 0.8rem;
+      color: var(--subtext);
+      margin-top: 20px;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>Stock Watch</h1>
+    <button class="btn-refresh" onclick="fetchAllQuotes()">更新</button>
+  </header>
+
+  <div class="config-box">
+    <label>Finnhub APIキー (端末に安全に保存されます):</label>
+    <input type="password" id="apiKeyInput" placeholder="APIキーを入力してキーボードを閉じる" onchange="saveKey()">
+  </div>
+
+  <div class="grid" id="stockList"></div>
+
+  <div class="status" id="lastUpdated">最終更新: 未取得</div>
+
+  <script>
+    // 監視対象銘柄リスト（ティッカーを追加・削除可能）
+    const SYMBOLS = ['NVDA', 'SOXL', 'TQQQ', 'AAPL', 'TSLA'];
+
+    window.onload = () => {
+      const savedKey = localStorage.getItem('finnhub_api_key') || '';
+      if (savedKey) {
+        document.getElementById('apiKeyInput').value = savedKey;
+        fetchAllQuotes();
+      }
+    };
+
+    function saveKey() {
+      const key = document.getElementById('apiKeyInput').value.trim();
+      if (key) {
+        localStorage.setItem('finnhub_api_key', key);
+        fetchAllQuotes();
+      }
+    }
+
+    async function fetchAllQuotes() {
+      const apiKey = localStorage.getItem('finnhub_api_key');
+      if (!apiKey) {
+        alert('APIキーを入力してください。');
+        return;
+      }
+
+      const listContainer = document.getElementById('stockList');
+      listContainer.innerHTML = '<div style="color: var(--subtext); text-align: center; padding: 20px;">データ取得中...</div>';
+
+      const results = [];
+      for (const symbol of SYMBOLS) {
+        try {
+          const url = `https://finnhub.io/api/v1/quote?symbol=${symbol}&token=${apiKey}`;
+          const res = await fetch(url);
+          const data = await res.json();
+
+          results.push({
+            symbol: symbol,
+            price: data.c ? data.c.toFixed(2) : '--',
+            change: data.d ? data.d.toFixed(2) : '--',
+            changePct: data.dp ? data.dp.toFixed(2) : '--',
+            isPositive: data.d >= 0
+          });
+        } catch (e) {
+          console.error(e);
+        }
+      }
+
+      listContainer.innerHTML = '';
+      for (const item of results) {
+        const card = document.createElement('div');
+        card.className = 'card';
+        card.innerHTML = `
+          <div>
+            <div class="symbol">${item.symbol}</div>
+            <div style="font-size: 0.75rem; color: var(--subtext);">リアルタイム</div>
+          </div>
+          <div class="price-group">
+            <div class="price">$${item.price}</div>
+            <div class="change ${item.isPositive ? 'up' : 'down'}">
+              ${item.isPositive ? '+' : ''}${item.change} (${item.isPositive ? '+' : ''}${item.changePct}%)
+            </div>
+          </div>
+        `;
+        listContainer.appendChild(card);
+      }
+
+      const now = new Date();
+      document.getElementById('lastUpdated').innerText =
+        `最終更新: ${now.toLocaleTimeString('ja-JP')}`;
+    }
+  </script>
+</body>
+</html>
