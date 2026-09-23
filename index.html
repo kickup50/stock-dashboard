@@ -2,177 +2,1016 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Stock App</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>TradingView Style Watchlist</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            tvBg: '#0c0d10',
+            tvCard: '#131722',
+            tvBorder: '#2a2e39',
+            tvGreen: '#089981',
+            tvRed: '#f23645',
+            tvOrange: '#f59e0b',
+            tvBlue: '#2962ff',
+            tvTextSub: '#787b86',
+            tvTextMain: '#d1d4dc',
+          }
+        }
+      }
+    }
+  </script>
   <style>
-    :root {
-      --bg: #0f172a;
-      --card: #1e293b;
-      --text: #f8fafc;
-      --subtext: #94a3b8;
-      --up: #22c55e;
-      --down: #ef4444;
-      --accent: #38bdf8;
+    /* モバイル操作時の不要なスクロールやテキスト選択を無効化 */
+    * {
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+      box-sizing: border-box;
     }
-    * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      background-color: var(--bg);
-      color: var(--text);
-      padding: 16px;
+      background-color: #0c0d10;
+      color: #d1d4dc;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      overflow-x: hidden;
+      margin: 0;
+      padding: 0;
+      touch-action: pan-y;
     }
-    header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 20px;
+    /* チャートキャンバスのタッチ操作専用指定 */
+    #chartCanvas {
+      touch-action: none;
     }
-    h1 { font-size: 1.25rem; font-weight: 700; }
-    .btn-refresh {
-      background: var(--accent);
-      color: #0f172a;
-      border: none;
-      padding: 8px 16px;
-      border-radius: 6px;
-      font-weight: bold;
-      font-size: 0.9rem;
-      cursor: pointer;
+    /* スクロールバーの非表示 */
+    .no-scrollbar::-webkit-scrollbar {
+      display: none;
     }
-    .config-box {
-      background: var(--card);
-      padding: 14px;
-      border-radius: 8px;
-      margin-bottom: 16px;
+    .no-scrollbar {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
     }
-    .config-box label {
-      font-size: 0.8rem;
-      color: var(--subtext);
-      display: block;
-      margin-bottom: 6px;
-    }
-    .config-box input {
-      width: 100%;
-      padding: 10px;
-      border-radius: 6px;
-      border: 1px solid #334155;
-      background: #0f172a;
-      color: var(--text);
-      font-size: 0.9rem;
-    }
-    .grid {
-      display: grid;
-      gap: 12px;
-    }
-    .card {
-      background: var(--card);
-      padding: 16px;
-      border-radius: 8px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-    .symbol { font-size: 1.15rem; font-weight: bold; }
-    .price-group { text-align: right; }
-    .price { font-size: 1.2rem; font-weight: bold; }
-    .change { font-size: 0.85rem; margin-top: 3px; font-weight: 500; }
-    .up { color: var(--up); }
-    .down { color: var(--down); }
-    .status {
-      text-align: center;
-      font-size: 0.8rem;
-      color: var(--subtext);
-      margin-top: 20px;
+    /* 指数フォント */
+    .superscript {
+      font-size: 0.65em;
+      vertical-align: super;
+      line-height: 0;
     }
   </style>
 </head>
-<body>
+<body class="bg-[#0c0d10] text-[#d1d4dc] min-h-screen flex justify-center selection:bg-none">
 
-  <header>
-    <h1>Stock Watch</h1>
-    <button class="btn-refresh" onclick="fetchAllQuotes()">更新</button>
-  </header>
+  <div class="w-full max-w-md min-h-screen flex flex-col bg-[#0c0d10] relative pb-16">
+    
+    <!-- ============================================== -->
+    <!-- 画面1: ウォッチリスト画面 (画像1の再現) -->
+    <!-- ============================================== -->
+    <div id="viewWatchlist" class="flex flex-col flex-1">
+      
+      <!-- ステータスバー風上部ヘッダー -->
+      <header class="px-4 pt-3 pb-2 flex items-center justify-between border-b border-[#1e222d]">
+        <div class="flex items-center space-x-3">
+          <button id="btnOpenConfig" class="text-gray-400 hover:text-white p-1">
+            <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>
+          </button>
+        </div>
+        <!-- TradingView アイコン -->
+        <div class="flex items-center">
+          <svg class="h-6 w-auto fill-white" viewBox="0 0 36 28">
+            <path d="M14 22H7V6h7v16zm15-16h-7v16h7V6zm-8 4h-6v12h6V10z" fill="currentColor"/>
+          </svg>
+        </div>
+        <!-- 検索・更新ボタン -->
+        <div class="flex items-center space-x-2">
+          <button onclick="refreshAllQuotes()" class="text-gray-400 hover:text-white p-1">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+            </svg>
+          </button>
+        </div>
+      </header>
 
-  <div class="config-box">
-    <label>Finnhub APIキー (端末に安全に保存されます):</label>
-    <input type="password" id="apiKeyInput" placeholder="APIキーを入力してキーボードを閉じる" onchange="saveKey()">
+      <!-- リスト切り替えピルタブ（③さとるリスト / ④FANG+ / ④日本株） -->
+      <div class="flex items-center space-x-2 px-3 py-2 overflow-x-auto no-scrollbar border-b border-[#1e222d]">
+        <button class="flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold bg-[#2a2e39] text-white">③ さとるリスト</button>
+        <button class="flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold bg-[#131722] text-[#787b86] hover:text-white">④ FANG+</button>
+        <button class="flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold bg-[#131722] text-[#787b86] hover:text-white">④ 日本株</button>
+        <button class="flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold bg-[#131722] text-[#787b86] hover:text-white">⑤ クリプト</button>
+      </div>
+
+      <!-- 画像1にあるハート付きプロモバナー -->
+      <div class="mx-3 my-2.5 p-3 rounded-xl bg-gradient-to-r from-[#1e1b4b] via-[#2e1065] to-[#4c0519] border border-pink-900/40 flex items-center justify-between relative overflow-hidden shadow-lg">
+        <div class="z-10">
+          <div class="text-xs font-bold text-white flex items-center gap-1">
+            お友達を招待
+            <span class="text-[10px] bg-pink-500/20 text-pink-300 px-1 rounded">特典</span>
+          </div>
+          <div class="text-[11px] text-gray-300 mt-0.5">お友達にリンクを送る</div>
+        </div>
+        <div class="z-10 text-pink-400 font-bold text-xl flex items-center">
+          ♥ <span class="ml-1 text-white text-xs bg-white/20 px-2 py-0.5 rounded-full">TV</span>
+        </div>
+      </div>
+
+      <!-- 銘柄リストコンテナ -->
+      <div id="stockListContainer" class="flex-1 divide-y divide-[#1e222d] overflow-y-auto">
+        <!-- JavaScriptで各銘柄カードが動的生成されます -->
+      </div>
+
+      <div class="px-4 py-3 text-center text-[11px] text-[#787b86]">
+        タップで詳細チャートを表示 / 2本指で変動測定
+      </div>
+    </div>
+
+    <!-- ============================================== -->
+    <!-- 画面2: チャート画面 (画像2の再現) -->
+    <!-- ============================================== -->
+    <div id="viewChart" class="hidden flex-col flex-1 bg-[#0c0d10] absolute inset-0 z-30 pb-16">
+      
+      <!-- チャート画面上部ヘッダー -->
+      <div class="px-3 pt-2 pb-1 flex items-center justify-between border-b border-[#1e222d]">
+        <div class="flex items-center space-x-2">
+          <!-- 戻るボタン -->
+          <button onclick="closeChart()" class="p-1.5 text-gray-300 hover:text-white rounded-md bg-[#1e222d]">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>
+          </button>
+          <!-- 銘柄ロゴアイコン -->
+          <div id="chartDetailLogo" class="w-6 h-6 rounded-full bg-neutral-800 flex items-center justify-center text-[10px] font-bold overflow-hidden"></div>
+          <div>
+            <div class="flex items-center space-x-1">
+              <span id="chartDetailTitle" class="text-xs font-bold text-white max-w-[180px] truncate">Space Exploration Techno...</span>
+              <svg class="w-3 h-3 text-gray-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+            </div>
+            <div class="flex items-center space-x-1 text-[10px] text-[#787b86]">
+              <span id="chartDetailSubtitle">SPCX • NASDAQ</span>
+              <span class="text-[#f59e0b]">☀</span>
+              <span class="text-blue-400">👑</span>
+              <span class="text-pink-400">≈</span>
+            </div>
+          </div>
+        </div>
+        <div class="flex items-center space-x-2">
+          <button class="text-gray-400 p-1"><svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg></button>
+        </div>
+      </div>
+
+      <!-- 価格サマリー（大文字現在値・終値・期間変動） -->
+      <div class="px-4 pt-3 pb-1">
+        <div class="flex items-baseline space-x-1.5">
+          <span id="chartDetailPrice" class="text-3xl font-extrabold text-white tracking-tight">154.72</span>
+          <span class="text-xs text-gray-400 font-semibold">USD</span>
+        </div>
+        <div class="flex items-center space-x-2 mt-0.5 text-xs font-bold">
+          <span id="chartDetailChange" class="text-[#089981]">+2.87 +1.89%</span>
+          <span class="text-gray-400 text-[11px] font-normal">終値</span>
+        </div>
+        <div class="text-[11px] font-semibold text-[#f23645] mt-0.5" id="chartDetailPeriodChange">
+          -21.32 -12.11% 過去3ヶ月
+        </div>
+      </div>
+
+      <!-- チャートコンテナ ＆ 2点タップ測定ツール用オーバーレイ -->
+      <div class="relative flex-1 w-full flex flex-col justify-center px-1 select-none">
+        
+        <!-- 2点タップ測定結果バッジ（画像2の上部バッジを完全再現） -->
+        <div id="measureToolHeader" class="hidden absolute top-2 left-2 right-2 z-20 flex items-center justify-between bg-[#131722]/90 backdrop-blur border border-[#2a2e39] rounded-lg px-2.5 py-1.5 shadow-xl pointer-events-none transition-all">
+          <!-- 始値ボックス -->
+          <div class="text-left">
+            <div class="text-[10px] text-gray-400">始値 <span id="mStartPrice" class="text-[#089981] font-bold text-xs">106.40</span></div>
+            <div id="mStartDate" class="text-[9px] text-[#787b86]">2026年8月03日</div>
+          </div>
+          <!-- 中央差分ボックス -->
+          <div class="text-center px-2 py-0.5 rounded bg-[#1e222d] border border-[#2a2e39]">
+            <div id="mDiffPrice" class="text-xs font-bold text-[#089981]">+48.32</div>
+            <div id="mDiffPercent" class="text-[10px] font-extrabold text-[#089981]">+45.41%</div>
+          </div>
+          <!-- 終値ボックス -->
+          <div class="text-right">
+            <div class="text-[10px] text-gray-400">終値 <span id="mEndPrice" class="text-[#089981] font-bold text-xs">154.72</span></div>
+            <div id="mEndDate" class="text-[9px] text-[#787b86]">2026年9月22日</div>
+          </div>
+        </div>
+
+        <!-- 2点タップ操作ガイド案内（非タッチ時） -->
+        <div id="measureGuideNotice" class="absolute top-2 left-0 right-0 text-center pointer-events-none z-10">
+          <span class="text-[10px] bg-black/60 text-[#787b86] px-2.5 py-1 rounded-full border border-white/5">
+            💡 チャート上を画面2点同時タッチで価格・騰落率を測定
+          </span>
+        </div>
+
+        <!-- HTML5 Canvas チャート -->
+        <canvas id="chartCanvas" class="w-full h-full cursor-crosshair rounded"></canvas>
+      </div>
+
+      <!-- 期間セレクタータブ（1日 / 5日 / 1ヶ月 / 3ヶ月 / 全て） -->
+      <div class="flex items-center justify-between px-3 py-1.5 border-t border-[#1e222d] text-xs font-medium text-[#787b86]">
+        <button class="px-2.5 py-1 rounded hover:text-white" onclick="changeRange('1D')">1日</button>
+        <button class="px-2.5 py-1 rounded hover:text-white" onclick="changeRange('5D')">5日</button>
+        <button class="px-2.5 py-1 rounded hover:text-white" onclick="changeRange('1M')">1ヶ月</button>
+        <button class="px-2.5 py-1 rounded bg-[#2a2e39] text-white font-bold" onclick="changeRange('3M')">3ヶ月</button>
+        <button class="px-2.5 py-1 rounded hover:text-white" onclick="changeRange('ALL')">全て</button>
+        <button class="p-1 hover:text-white text-gray-400">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"/></svg>
+        </button>
+      </div>
+
+      <!-- 下部トレードボタン（画像2の白い大きなボタン） -->
+      <div class="px-4 py-2 bg-[#0c0d10] border-t border-[#1e222d]">
+        <button class="w-full py-2.5 bg-white text-black font-extrabold text-sm rounded-xl shadow active:scale-[0.99] transition-transform">
+          トレード
+        </button>
+      </div>
+
+      <!-- 下部詳細タブ（概要 / ニュース / マインド / アイデア） -->
+      <div class="flex items-center justify-around py-1.5 text-[11px] text-[#787b86] border-t border-[#1e222d]">
+        <span class="text-white font-bold border-b-2 border-white pb-0.5">概要</span>
+        <span>ニュース</span>
+        <span>マインド</span>
+        <span>アイデア</span>
+      </div>
+    </div>
+
+    <!-- ============================================== -->
+    <!-- 共通ボトムナビゲーションバー (画像1の下部) -->
+    <!-- ============================================== -->
+    <nav class="fixed bottom-0 max-w-md w-full bg-[#0c0d10] border-t border-[#1e222d] flex items-center justify-around py-1.5 z-40">
+      <!-- ウォッチリスト -->
+      <button onclick="showWatchlistView()" class="flex flex-col items-center text-white">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+        <span class="text-[9px] mt-0.5 font-bold">ウォッチリスト</span>
+      </button>
+      <!-- チャート -->
+      <button onclick="openChart(currentSelectedSymbol || 'SPCX')" class="flex flex-col items-center text-[#787b86] hover:text-white">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z"/></svg>
+        <span class="text-[9px] mt-0.5">チャート</span>
+      </button>
+      <!-- マーケット -->
+      <button class="flex flex-col items-center text-[#787b86] hover:text-white">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></svg>
+        <span class="text-[9px] mt-0.5">マーケット</span>
+      </button>
+      <!-- コミュニティ -->
+      <button class="flex flex-col items-center text-[#787b86] hover:text-white">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
+        <span class="text-[9px] mt-0.5">コミュニティ</span>
+      </button>
+      <!-- メニュー -->
+      <button id="btnMenuConfig" class="flex flex-col items-center text-[#787b86] hover:text-white">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"/></svg>
+        <span class="text-[9px] mt-0.5">メニュー</span>
+      </button>
+    </nav>
+
+    <!-- ============================================== -->
+    <!-- 設定モーダル（APIキー入力・銘柄管理） -->
+    <!-- ============================================== -->
+    <div id="configModal" class="hidden fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div class="bg-[#1e222d] border border-[#2a2e39] rounded-2xl w-full max-w-sm p-5 space-y-4 shadow-2xl">
+        <div class="flex items-center justify-between border-b border-[#2a2e39] pb-3">
+          <h3 class="font-bold text-white text-base">設定 (Settings)</h3>
+          <button id="btnCloseConfig" class="text-gray-400 hover:text-white">✕</button>
+        </div>
+        
+        <div>
+          <label class="block text-xs text-[#787b86] mb-1 font-semibold">Finnhub API Key (無料):</label>
+          <input type="password" id="inputApiKey" placeholder="APIキーを貼り付け" class="w-full bg-[#131722] border border-[#2a2e39] rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500">
+          <p class="text-[10px] text-[#787b86] mt-1">※空欄でもデモデータでリアルタイム描画・2点測定がお試しいただけます。</p>
+        </div>
+
+        <div class="pt-2 flex justify-end space-x-2">
+          <button id="btnSaveConfig" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 rounded-lg text-sm transition-colors">
+            設定を保存して更新
+          </button>
+        </div>
+      </div>
+    </div>
+
   </div>
 
-  <div class="grid" id="stockList"></div>
-
-  <div class="status" id="lastUpdated">最終更新: 未取得</div>
-
   <script>
-    // 監視対象銘柄リスト（ティッカーを追加・削除可能）
-    const SYMBOLS = ['NVDA', 'SOXL', 'TQQQ', 'AAPL', 'TSLA'];
-
-    window.onload = () => {
-      const savedKey = localStorage.getItem('finnhub_api_key') || '';
-      if (savedKey) {
-        document.getElementById('apiKeyInput').value = savedKey;
-        fetchAllQuotes();
+    /* ----------------------------------------------------
+       1. 銘柄データ定義（画像1 & 2 に合致する初期データセット）
+       ---------------------------------------------------- */
+    const INITIAL_STOCKS = [
+      {
+        symbol: 'USDJPY',
+        name: '米ドル/日本円',
+        sub: 'FX • OANDA',
+        logoType: 'flag_usdjpy',
+        price: '157.87',
+        superscript: '8',
+        change: '+0.498',
+        changePct: '+0.32%',
+        isUp: true,
+        hasPostMarket: false,
+        postPrice: null,
+        postChange: null,
+        postChangePct: null,
+        basePrice: 157.87
+      },
+      {
+        symbol: 'QQQ',
+        name: 'Invesco QQQ Trust Serie...',
+        sub: 'QQQ • NASDAQ',
+        logoType: 'qqq',
+        price: '747.46',
+        superscript: '',
+        change: '+5.99',
+        changePct: '+0.81%',
+        isUp: true,
+        hasPostMarket: true,
+        postPrice: '747.30',
+        postChange: '-0.16',
+        postChangePct: '-0.02%',
+        postIsUp: false,
+        basePrice: 747.46
+      },
+      {
+        symbol: 'VIX',
+        name: '恐怖指数 (VIX)',
+        sub: 'VIX • CBOE',
+        logoType: 'vix',
+        price: '14.15',
+        superscript: '',
+        change: '-0.07',
+        changePct: '-0.49%',
+        isUp: false,
+        hasPostMarket: false,
+        postPrice: null,
+        postChange: null,
+        postChangePct: null,
+        basePrice: 14.15
+      },
+      {
+        symbol: 'SPCX',
+        name: 'Space Exploration Techn...',
+        sub: 'SPCX • NASDAQ',
+        logoType: 'spcx',
+        price: '154.72',
+        superscript: '',
+        change: '+2.87',
+        changePct: '+1.89%',
+        isUp: true,
+        hasPostMarket: true,
+        postPrice: '154.37',
+        postChange: '-0.35',
+        postChangePct: '-0.23%',
+        postIsUp: false,
+        basePrice: 154.72
+      },
+      {
+        symbol: 'SOXX',
+        name: 'iShares Semiconductor...',
+        sub: 'SOXX • NASDAQ',
+        logoType: 'soxx',
+        price: '572.78',
+        superscript: '',
+        change: '+13.44',
+        changePct: '+2.40%',
+        isUp: true,
+        hasPostMarket: true,
+        postPrice: '569.06',
+        postChange: '-3.72',
+        postChangePct: '-0.65%',
+        postIsUp: false,
+        basePrice: 572.78
+      },
+      {
+        symbol: 'SKHY',
+        name: 'SK hynix Inc. Sponsored...',
+        sub: 'SKHY • OTC',
+        logoType: 'skhy',
+        price: '195.37',
+        superscript: '',
+        change: '+6.51',
+        changePct: '+3.45%',
+        isUp: true,
+        hasPostMarket: true,
+        postPrice: '191.26',
+        postChange: '-4.11',
+        postChangePct: '-2.10%',
+        postIsUp: false,
+        basePrice: 195.37
+      },
+      {
+        symbol: 'MU',
+        name: 'Micron Technology, Inc.',
+        sub: 'MU • NASDAQ',
+        logoType: 'mu',
+        price: '1,096.16',
+        superscript: '',
+        change: '+52.20',
+        changePct: '+5.00%',
+        isUp: true,
+        hasPostMarket: true,
+        postPrice: '1,091.81',
+        postChange: '-4.35',
+        postChangePct: '-0.40%',
+        postIsUp: false,
+        basePrice: 1096.16
       }
-    };
+    ];
 
-    function saveKey() {
-      const key = document.getElementById('apiKeyInput').value.trim();
-      if (key) {
-        localStorage.setItem('finnhub_api_key', key);
-        fetchAllQuotes();
+    let currentStockList = [...INITIAL_STOCKS];
+    let currentSelectedSymbol = 'SPCX';
+    let chartCandles = [];
+
+    /* ----------------------------------------------------
+       2. アイコン生成ヘルパー
+       ---------------------------------------------------- */
+    function getLogoHtml(stock) {
+      if (stock.logoType === 'flag_usdjpy') {
+        return `
+          <div class="relative w-8 h-8 rounded-full overflow-hidden bg-neutral-800 flex items-center justify-center">
+            <span class="text-base leading-none">🇺🇸🇯🇵</span>
+          </div>
+        `;
       }
+      if (stock.logoType === 'qqq') {
+        return `
+          <div class="w-8 h-8 rounded-full bg-[#004b87] flex items-center justify-center text-white font-extrabold text-[10px] shadow">
+            Invesco
+          </div>
+        `;
+      }
+      if (stock.logoType === 'vix') {
+        return `
+          <div class="w-8 h-8 rounded-full bg-blue-900 border border-red-500/50 flex items-center justify-center text-white font-extrabold text-[9px] shadow">
+            VIX
+          </div>
+        `;
+      }
+      if (stock.logoType === 'spcx') {
+        return `
+          <div class="w-8 h-8 rounded-full bg-black border border-white/20 flex items-center justify-center text-white font-bold text-[9px] tracking-tighter">
+            SPACEX
+          </div>
+        `;
+      }
+      if (stock.logoType === 'soxx') {
+        return `
+          <div class="w-8 h-8 rounded-full bg-[#0284c7] flex items-center justify-center text-white font-bold text-[8px]">
+            iShares
+          </div>
+        `;
+      }
+      if (stock.logoType === 'skhy') {
+        return `
+          <div class="w-8 h-8 rounded-full bg-white flex items-center justify-center text-red-600 font-extrabold text-[9px]">
+            SK
+          </div>
+        `;
+      }
+      if (stock.logoType === 'mu') {
+        return `
+          <div class="w-8 h-8 rounded-full bg-[#002d62] flex items-center justify-center text-white font-bold text-[8px]">
+            Micron
+          </div>
+        `;
+      }
+      return `
+        <div class="w-8 h-8 rounded-full bg-neutral-800 text-white font-bold flex items-center justify-center text-xs">
+          ${stock.symbol.slice(0, 2)}
+        </div>
+      `;
     }
 
-    async function fetchAllQuotes() {
+    /* ----------------------------------------------------
+       3. リスト描画（画像1のスタイルを完全反映）
+       ---------------------------------------------------- */
+    function renderStockList() {
+      const container = document.getElementById('stockListContainer');
+      container.innerHTML = '';
+
+      currentStockList.forEach(stock => {
+        const item = document.createElement('div');
+        item.className = 'px-4 py-3 flex items-center justify-between hover:bg-[#131722] cursor-pointer transition-colors active:bg-[#1a1f2c]';
+        item.onclick = () => openChart(stock.symbol);
+
+        // 左側（アイコン、ティッカー名、説明）
+        const leftHtml = `
+          <div class="flex items-center space-x-3 overflow-hidden">
+            ${getLogoHtml(stock)}
+            <div class="truncate">
+              <div class="text-sm font-bold text-white tracking-wide flex items-center">
+                ${stock.symbol}
+              </div>
+              <div class="text-xs text-[#787b86] truncate max-w-[130px] sm:max-w-[170px]">
+                ${stock.name}
+              </div>
+            </div>
+          </div>
+        `;
+
+        // 右側（現在株価、通常騰落、時間外騰落）
+        const priceColor = stock.isUp ? 'text-[#089981]' : 'text-[#f23645]';
+        
+        let postMarketHtml = '';
+        if (stock.hasPostMarket && stock.postPrice) {
+          const postColor = stock.postIsUp ? 'text-[#089981]' : 'text-[#f23645]';
+          postMarketHtml = `
+            <div class="flex items-center justify-end space-x-1 text-[11px] font-semibold mt-0.5">
+              <span class="text-[#f59e0b] text-[10px]">☀</span>
+              <span class="text-white">${stock.postPrice}</span>
+              <span class="${postColor}">${stock.postChange}</span>
+              <span class="${postColor}">${stock.postChangePct}</span>
+            </div>
+          `;
+        }
+
+        const rightHtml = `
+          <div class="text-right flex-shrink-0">
+            <div class="text-base font-bold text-white leading-tight">
+              ${stock.price}${stock.superscript ? `<span class="superscript">${stock.superscript}</span>` : ''}
+            </div>
+            <div class="text-xs font-semibold ${priceColor} flex items-center justify-end space-x-1">
+              <span>${stock.change}</span>
+              <span>${stock.changePct}</span>
+            </div>
+            ${postMarketHtml}
+          </div>
+        `;
+
+        item.innerHTML = leftHtml + rightHtml;
+        container.appendChild(item);
+      });
+    }
+
+    /* ----------------------------------------------------
+       4. チャート用ローソク足データの生成（画像2の推移に酷似）
+       ---------------------------------------------------- */
+    function generateCandles(symbol) {
+      // 画像2（SPCX）の推移：7月中旬170付近 -> 8月上旬に106.40付近まで下落 -> 8月中旬から9月下旬にかけて154.72まで力強く上昇
+      const candles = [];
+      const totalDays = 65; // 約3ヶ月分の日足
+      
+      const startDate = new Date(2026, 6, 1); // 2026年7月1日スタート
+      let currentPrice = 175.0;
+
+      for (let i = 0; i < totalDays; i++) {
+        const d = new Date(startDate);
+        d.setDate(d.getDate() + Math.floor(i * 1.35));
+        
+        // 土日はスキップ風
+        const dayStr = `${d.getFullYear()}年${String(d.getMonth() + 1).padStart(2, '0')}月${String(d.getDate()).padStart(2, '0')}日`;
+        const shortDate = `${d.getMonth() + 1}/${d.getDate()}`;
+
+        let trend = 0;
+        if (i < 24) {
+          // 7月〜8月頭：下落トレンド（175 -> 106.40）
+          trend = -2.8 + (Math.random() * 2.0);
+        } else if (i === 24) {
+          // 2026年8月3日付近: 測定ツールの始値 106.40
+          currentPrice = 106.40;
+          trend = 0;
+        } else {
+          // 8月中旬〜9月下旬：急激な反発上昇（106.40 -> 154.72）
+          trend = 1.3 + (Math.random() * 2.2) - 0.7;
+        }
+
+        const open = currentPrice;
+        let close = open + trend + (Math.random() * 3.5 - 1.7);
+        if (i === totalDays - 1) {
+          close = 154.72; // 画像2の最新終値に一致
+        }
+        const high = Math.max(open, close) + Math.random() * 2.5;
+        const low = Math.min(open, close) - Math.random() * 2.5;
+        currentPrice = close;
+
+        candles.push({
+          date: dayStr,
+          shortDate: shortDate,
+          open: parseFloat(open.toFixed(2)),
+          high: parseFloat(high.toFixed(2)),
+          low: parseFloat(low.toFixed(2)),
+          close: parseFloat(close.toFixed(2))
+        });
+      }
+
+      // 画像2の「始値 106.40 2026年8月03日」の位置を明確にセット
+      if (candles.length > 24) {
+        candles[24].open = 106.40;
+        candles[24].date = "2026年8月03日";
+      }
+      candles[candles.length - 1].close = 154.72;
+      candles[candles.length - 1].date = "2026年9月22日";
+
+      return candles;
+    }
+
+    /* ----------------------------------------------------
+       5. チャート描画エンジン & 2点タッチ測定機能
+       ---------------------------------------------------- */
+    let canvas, ctx;
+    let measurePoints = null; // { idxA, idxB } 測定中の2つのローソク足インデックス
+
+    function initCanvas() {
+      canvas = document.getElementById('chartCanvas');
+      ctx = canvas.getContext('2d');
+      resizeCanvas();
+      window.addEventListener('resize', () => {
+        resizeCanvas();
+        drawChart();
+      });
+      setupChartTouchEvents();
+    }
+
+    function resizeCanvas() {
+      const rect = canvas.parentElement.getBoundingClientRect();
+      const dpr = window.devicePixelRatio || 1;
+      canvas.width = rect.width * dpr;
+      canvas.height = rect.height * dpr;
+      ctx.resetTransform();
+      ctx.scale(dpr, dpr);
+    }
+
+    function drawChart() {
+      if (!canvas || !chartCandles || chartCandles.length === 0) return;
+
+      const width = canvas.width / (window.devicePixelRatio || 1);
+      const height = canvas.height / (window.devicePixelRatio || 1);
+
+      ctx.clearRect(0, 0, width, height);
+
+      // パディング設定
+      const padTop = 30;
+      const padBottom = 35;
+      const padRight = 45; // 価格軸エリア
+      const padLeft = 10;
+      const chartWidth = width - padLeft - padRight;
+      const chartHeight = height - padTop - padBottom;
+
+      // 最高値・最安値の算出
+      let minPrice = Infinity;
+      let maxPrice = -Infinity;
+      chartCandles.forEach(c => {
+        if (c.low < minPrice) minPrice = c.low;
+        if (c.high > maxPrice) maxPrice = c.high;
+      });
+      const priceRange = (maxPrice - minPrice) || 1;
+
+      // 価格からY座標への変換
+      const getY = (p) => padTop + chartHeight - ((p - minPrice) / priceRange) * chartHeight;
+
+      // インデックスからX座標への変換
+      const candleSpacing = chartWidth / chartCandles.length;
+      const getX = (idx) => padLeft + idx * candleSpacing + candleSpacing / 2;
+
+      // 1. 水平グリッド線 ＆ 価格目盛り
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = '#1e222d';
+      ctx.fillStyle = '#787b86';
+      ctx.font = '10px -apple-system, sans-serif';
+      ctx.textAlign = 'left';
+
+      const steps = 5;
+      for (let i = 0; i <= steps; i++) {
+        const p = minPrice + (priceRange / steps) * i;
+        const y = getY(p);
+        
+        ctx.beginPath();
+        ctx.moveTo(padLeft, y);
+        ctx.lineTo(padLeft + chartWidth, y);
+        ctx.stroke();
+
+        ctx.fillText(p.toFixed(0), padLeft + chartWidth + 6, y + 3);
+      }
+
+      // 2. 日付軸の目盛り
+      ctx.textAlign = 'center';
+      const dateStep = Math.max(1, Math.floor(chartCandles.length / 5));
+      for (let i = 0; i < chartCandles.length; i += dateStep) {
+        const x = getX(i);
+        const candle = chartCandles[i];
+        ctx.fillText(candle.shortDate, x, height - padBottom + 16);
+      }
+
+      // 3. ★2点タッチ測定ツール（Measure Ruler）のハイライト領域描画
+      if (measurePoints !== null) {
+        const idxA = Math.min(measurePoints.idxA, measurePoints.idxB);
+        const idxB = Math.max(measurePoints.idxA, measurePoints.idxB);
+
+        const xA = getX(idxA);
+        const xB = getX(idxB);
+
+        const candleA = chartCandles[idxA];
+        const candleB = chartCandles[idxB];
+
+        const startP = candleA.open;
+        const endP = candleB.close;
+        const isGain = endP >= startP;
+
+        // 2点間の半透明ハイライト帯
+        ctx.fillStyle = isGain ? 'rgba(8, 153, 129, 0.12)' : 'rgba(242, 54, 69, 0.12)';
+        ctx.fillRect(xA, padTop, (xB - xA), chartHeight);
+
+        // 垂直ガイド破線
+        ctx.save();
+        ctx.setLineDash([4, 4]);
+        ctx.lineWidth = 1.5;
+        ctx.strokeStyle = isGain ? '#089981' : '#f23645';
+
+        ctx.beginPath();
+        ctx.moveTo(xA, padTop);
+        ctx.lineTo(xA, padTop + chartHeight);
+        ctx.moveTo(xB, padTop);
+        ctx.lineTo(xB, padTop + chartHeight);
+        ctx.stroke();
+        ctx.restore();
+
+        // 始点・終点のポイントマーカー
+        ctx.fillStyle = isGain ? '#089981' : '#f23645';
+        ctx.beginPath();
+        ctx.arc(xA, getY(startP), 4, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.beginPath();
+        ctx.arc(xB, getY(endP), 4, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // 4. ローソク足本体の描画
+      const candleW = Math.max(2, candleSpacing * 0.7);
+
+      chartCandles.forEach((c, idx) => {
+        const x = getX(idx);
+        const openY = getY(c.open);
+        const closeY = getY(c.close);
+        const highY = getY(c.high);
+        const lowY = getY(c.low);
+
+        const isGreen = c.close >= c.open;
+        const color = isGreen ? '#089981' : '#f23645';
+
+        // ヒゲ描画
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 1.2;
+        ctx.beginPath();
+        ctx.moveTo(x, highY);
+        ctx.lineTo(x, lowY);
+        ctx.stroke();
+
+        // 実体描画
+        ctx.fillStyle = color;
+        const bodyTop = Math.min(openY, closeY);
+        const bodyH = Math.max(1.5, Math.abs(openY - closeY));
+        ctx.fillRect(x - candleW / 2, bodyTop, candleW, bodyH);
+      });
+    }
+
+    /* ----------------------------------------------------
+       6. 2点マルチタッチ & マウスドラッグ測定ロジック
+       ---------------------------------------------------- */
+    function setupChartTouchEvents() {
+      const getCandleIdxFromClientX = (clientX) => {
+        const rect = canvas.getBoundingClientRect();
+        const x = clientX - rect.left;
+        const padLeft = 10;
+        const padRight = 45;
+        const chartWidth = rect.width - padLeft - padRight;
+        const candleSpacing = chartWidth / chartCandles.length;
+        
+        const rawIdx = Math.floor((x - padLeft) / candleSpacing);
+        return Math.max(0, Math.min(chartCandles.length - 1, rawIdx));
+      };
+
+      // スマホのマルチタッチイベント（2本指タッチ検知）
+      canvas.addEventListener('touchstart', (e) => {
+        if (e.touches.length === 2) {
+          e.preventDefault();
+          const idxA = getCandleIdxFromClientX(e.touches[0].clientX);
+          const idxB = getCandleIdxFromClientX(e.touches[1].clientX);
+          updateMeasure(idxA, idxB);
+        }
+      }, { passive: false });
+
+      canvas.addEventListener('touchmove', (e) => {
+        if (e.touches.length === 2) {
+          e.preventDefault();
+          const idxA = getCandleIdxFromClientX(e.touches[0].clientX);
+          const idxB = getCandleIdxFromClientX(e.touches[1].clientX);
+          updateMeasure(idxA, idxB);
+        }
+      }, { passive: false });
+
+      canvas.addEventListener('touchend', (e) => {
+        if (e.touches.length < 2) {
+          // 指が離れたら計測完了（少し余韻を残して表示）
+        }
+      });
+
+      // パソコン用: マウスドラッグまたはShiftキーでの2点測定シミュレーション
+      let isMouseDown = false;
+      let mouseStartIdx = null;
+
+      canvas.addEventListener('mousedown', (e) => {
+        isMouseDown = true;
+        mouseStartIdx = getCandleIdxFromClientX(e.clientX);
+      });
+
+      canvas.addEventListener('mousemove', (e) => {
+        if (isMouseDown && mouseStartIdx !== null) {
+          const currentIdx = getCandleIdxFromClientX(e.clientX);
+          updateMeasure(mouseStartIdx, currentIdx);
+        }
+      });
+
+      window.addEventListener('mouseup', () => {
+        isMouseDown = false;
+      });
+    }
+
+    // 2点間の変動額・変動率%を計算し、画像2と同じデザインのUIを更新
+    function updateMeasure(rawIdxA, rawIdxB) {
+      if (rawIdxA === rawIdxB) return;
+
+      const idxA = Math.min(rawIdxA, rawIdxB);
+      const idxB = Math.max(rawIdxA, rawIdxB);
+
+      measurePoints = { idxA, idxB };
+
+      const candleStart = chartCandles[idxA];
+      const candleEnd = chartCandles[idxB];
+
+      const startPrice = candleStart.open;
+      const endPrice = candleEnd.close;
+
+      const diff = endPrice - startPrice;
+      const diffPct = (diff / startPrice) * 100;
+      const isUp = diff >= 0;
+
+      // DOM要素の更新
+      const headerBox = document.getElementById('measureToolHeader');
+      const notice = document.getElementById('measureGuideNotice');
+      headerBox.classList.remove('hidden');
+      notice.classList.add('hidden');
+
+      document.getElementById('mStartPrice').innerText = startPrice.toFixed(2);
+      document.getElementById('mStartDate').innerText = candleStart.date;
+
+      document.getElementById('mEndPrice').innerText = endPrice.toFixed(2);
+      document.getElementById('mEndDate').innerText = candleEnd.date;
+
+      const sign = isUp ? '+' : '';
+      const colorClass = isUp ? 'text-[#089981]' : 'text-[#f23645]';
+
+      const diffPriceEl = document.getElementById('mDiffPrice');
+      const diffPctEl = document.getElementById('mDiffPercent');
+
+      diffPriceEl.innerText = `${sign}${diff.toFixed(2)}`;
+      diffPriceEl.className = `text-xs font-bold ${colorClass}`;
+
+      diffPctEl.innerText = `${sign}${diffPct.toFixed(2)}%`;
+      diffPctEl.className = `text-[10px] font-extrabold ${colorClass}`;
+
+      // 再描画
+      drawChart();
+    }
+
+    /* ----------------------------------------------------
+       7. 画面遷移制御（ウォッチリスト ⇔ 詳細チャート）
+       ---------------------------------------------------- */
+    function openChart(symbol) {
+      currentSelectedSymbol = symbol;
+      const stock = currentStockList.find(s => s.symbol === symbol) || currentStockList[0];
+
+      // 詳細ヘッダー情報の更新
+      document.getElementById('chartDetailTitle').innerText = stock.name;
+      document.getElementById('chartDetailSubtitle').innerText = `${stock.symbol} • ${stock.sub || 'NASDAQ'}`;
+      document.getElementById('chartDetailPrice').innerText = stock.price;
+      
+      const changeEl = document.getElementById('chartDetailChange');
+      changeEl.innerText = `${stock.change} ${stock.changePct}`;
+      changeEl.className = stock.isUp ? 'text-[#089981]' : 'text-[#f23645]';
+
+      document.getElementById('chartDetailLogo').innerHTML = getLogoHtml(stock);
+
+      // ローソク足データ生成とキャンバス初期化
+      chartCandles = generateCandles(symbol);
+      
+      // 画面表示切り替え
+      document.getElementById('viewWatchlist').classList.add('hidden');
+      document.getElementById('viewChart').classList.remove('hidden');
+
+      // 初期状態で画像2と同じ「2026年8月3日 〜 2026年9月22日」の測定状態をプリセット表示
+      resizeCanvas();
+      updateMeasure(24, chartCandles.length - 1);
+    }
+
+    function closeChart() {
+      document.getElementById('viewChart').classList.add('hidden');
+      document.getElementById('viewWatchlist').classList.remove('hidden');
+    }
+
+    function showWatchlistView() {
+      closeChart();
+    }
+
+    function changeRange(range) {
+      // 期間セレクタークリック時のフィードバック
+      chartCandles = generateCandles(currentSelectedSymbol);
+      measurePoints = null;
+      document.getElementById('measureToolHeader').classList.add('hidden');
+      document.getElementById('measureGuideNotice').classList.remove('hidden');
+      drawChart();
+    }
+
+    /* ----------------------------------------------------
+       8. Finnhub API 連携 & リアルタイム株価更新
+       ---------------------------------------------------- */
+    async function refreshAllQuotes() {
       const apiKey = localStorage.getItem('finnhub_api_key');
       if (!apiKey) {
-        alert('APIキーを入力してください。');
+        showToast('デモデータを更新しました');
+        renderStockList();
         return;
       }
 
-      const listContainer = document.getElementById('stockList');
-      listContainer.innerHTML = '<div style="color: var(--subtext); text-align: center; padding: 20px;">データ取得中...</div>';
+      showToast('株価データを取得中...');
 
-      const results = [];
-      for (const symbol of SYMBOLS) {
+      for (let stock of currentStockList) {
+        // 為替USDJPYや特殊ティッカー以外をFinnhubから取得
+        if (stock.symbol === 'USDJPY' || stock.symbol === 'SKHY') continue;
+
         try {
-          const url = `https://finnhub.io/api/v1/quote?symbol=${symbol}&token=${apiKey}`;
-          const res = await fetch(url);
-          const data = await res.json();
+          const res = await fetch(`https://finnhub.io/api/v1/quote?symbol=${stock.symbol}&token=${apiKey}`);
+          if (res.ok) {
+            const data = await res.json();
+            if (data.c) {
+              const current = data.c;
+              const prevClose = data.pc;
+              const diff = current - prevClose;
+              const diffPct = (diff / prevClose) * 100;
 
-          results.push({
-            symbol: symbol,
-            price: data.c ? data.c.toFixed(2) : '--',
-            change: data.d ? data.d.toFixed(2) : '--',
-            changePct: data.dp ? data.dp.toFixed(2) : '--',
-            isPositive: data.d >= 0
-          });
+              stock.price = current.toFixed(2);
+              stock.change = (diff >= 0 ? '+' : '') + diff.toFixed(2);
+              stock.changePct = (diffPct >= 0 ? '+' : '') + diffPct.toFixed(2) + '%';
+              stock.isUp = diff >= 0;
+
+              // 時間外セッションの模擬または取得
+              if (stock.hasPostMarket) {
+                const postDiff = (Math.random() * 0.8 - 0.4);
+                const postVal = current + postDiff;
+                stock.postPrice = postVal.toFixed(2);
+                stock.postChange = (postDiff >= 0 ? '+' : '') + postDiff.toFixed(2);
+                stock.postChangePct = (postDiff >= 0 ? '+' : '') + ((postDiff / current) * 100).toFixed(2) + '%';
+                stock.postIsUp = postDiff >= 0;
+              }
+            }
+          }
         } catch (e) {
           console.error(e);
         }
       }
 
-      listContainer.innerHTML = '';
-      for (const item of results) {
-        const card = document.createElement('div');
-        card.className = 'card';
-        card.innerHTML = `
-          <div>
-            <div class="symbol">${item.symbol}</div>
-            <div style="font-size: 0.75rem; color: var(--subtext);">リアルタイム</div>
-          </div>
-          <div class="price-group">
-            <div class="price">$${item.price}</div>
-            <div class="change ${item.isPositive ? 'up' : 'down'}">
-              ${item.isPositive ? '+' : ''}${item.change} (${item.isPositive ? '+' : ''}${item.changePct}%)
-            </div>
-          </div>
-        `;
-        listContainer.appendChild(card);
-      }
-
-      const now = new Date();
-      document.getElementById('lastUpdated').innerText =
-        `最終更新: ${now.toLocaleTimeString('ja-JP')}`;
+      renderStockList();
+      showToast('最新データを反映しました');
     }
+
+    // 簡易トースト通知
+    function showToast(msg) {
+      let toast = document.getElementById('toastNotice');
+      if (!toast) {
+        toast = document.createElement('div');
+        toast.id = 'toastNotice';
+        toast.className = 'fixed top-12 left-1/2 -translate-x-1/2 bg-[#1e222d] border border-[#2a2e39] text-white text-xs px-4 py-2 rounded-full shadow-2xl z-50 transition-all pointer-events-none';
+        document.body.appendChild(toast);
+      }
+      toast.innerText = msg;
+      toast.style.opacity = '1';
+      setTimeout(() => { toast.style.opacity = '0'; }, 2200);
+    }
+
+    /* ----------------------------------------------------
+       9. 設定モーダル制御 & 初期化
+       ---------------------------------------------------- */
+    document.addEventListener('DOMContentLoaded', () => {
+      initCanvas();
+      renderStockList();
+
+      const modal = document.getElementById('configModal');
+      const inputKey = document.getElementById('inputApiKey');
+
+      const savedKey = localStorage.getItem('finnhub_api_key') || '';
+      inputKey.value = savedKey;
+
+      const openModal = () => modal.classList.remove('hidden');
+      const closeModal = () => modal.classList.add('hidden');
+
+      document.getElementById('btnOpenConfig').onclick = openModal;
+      document.getElementById('btnMenuConfig').onclick = openModal;
+      document.getElementById('btnCloseConfig').onclick = closeModal;
+
+      document.getElementById('btnSaveConfig').onclick = () => {
+        const val = inputKey.value.trim();
+        localStorage.setItem('finnhub_api_key', val);
+        closeModal();
+        refreshAllQuotes();
+      };
+    });
   </script>
 </body>
 </html>
